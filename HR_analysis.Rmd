@@ -1,30 +1,324 @@
 ---
-title: "HR_analysis"
-author: "Anderson Hoff"
-date: "27 de fevereiro de 2020"
-output: html_document
+title: "HR PROMOTION"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: fill
+    social: "menu" 
+    source_code: embed
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r setup, include = FALSE}
+library(dplyr)
+library(flexdashboard)
+library(ggplot2)
+library(plotly)
+library(knitr)
+library(DT)
+library(rpivotTable)
+library(openintro)
+library(highcharter)
+library(ggvis)
 ```
 
-## R Markdown
+```{r data, include = FALSE}
+traindata=read.csv("train_data.csv",stringsAsFactors = F,header = T)
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+traindata <- traindata %>% 
+  select(is_promoted, everything())
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+colnames(traindata) <- c("Is_Promoted", "Employee_ID", "Department", "Region", "Education", "Gender", "Recruitment_Channel", "Number_of_Trainings", "Age", "Previous_Year_Rating", "Length_of_Service", "KPIs_met_80", "Awards_Won",  "Average_Training_Score")
 
-```{r cars}
-summary(cars)
+for(i in 1:14){
+  if(class(traindata[,i])=="character")
+  {traindata[,i]=as.factor(traindata[,i]) }
+}
+
+traindata$Is_Promoted <- as.factor(traindata$Is_Promoted)
+traindata$KPIs_met_80 <- as.factor(traindata$KPIs_met_80)
+traindata$Awards_Won <- as.factor(traindata$Awards_Won)
+
+for(i in 1:14){
+  if(class(traindata[,i])=="integer")
+  {traindata[,i]=as.numeric(traindata[,i])}
+}
+
+rm(i)
+####Ver quantidade de NAs na coluna
+
+sum(is.na(traindata$Number_of_Trainings))
+sum(is.na(traindata$Previous_Year_Rating))
+sum(is.na(traindata$Age))
+sum(is.na(traindata$Length_of_Service))
+sum(is.na(traindata$Awards_Won))
+sum(is.na(traindata$Average_Training_Score))
+
+levels(traindata$Department)
+levels(traindata$Region)
+levels(traindata$Education)
+levels(traindata$Gender)
+levels(traindata$Recruitment_Channel)
+levels(traindata$KPIs_met_80)
+levels(traindata$Awards_Won)
+levels(traindata$KPIs_met_80)
+
+####### Insere 0 para NA na coluna "previous_year_rating"
+
+traindata$Previous_Year_Rating[is.na(traindata$Previous_Year_Rating)] <- 0
+
+##Inserir None em education (missing values)
+
+levels(traindata$Education)
+traindata$Education = factor(traindata$Education,levels = c(levels(traindata$Education),"None"))
+levels(traindata$Education)[1]
+levels(traindata$Education)[1] <- NA
+traindata$Education[is.na(traindata$Education)] <- "None"
+
+levels(traindata$Department)[levels(traindata$Department)=="Sales & Marketing"] <- "Sales and Marketing"
+levels(traindata$Department)[levels(traindata$Department)=="R&D"] <- "R and D"
+levels(traindata$Education)[levels(traindata$Education)=="Master's & above"] <- "Masters and above"
+levels(traindata$Education)[levels(traindata$Education)=="Bachelor's"] <- "Bachelor"
+
+mycolors <- c("blue", "FFC125", "darkgreen", "darkorange", "red")
 ```
 
-## Including Plots
+GENERAL
+========================================================
 
-You can also embed plots, for example:
+Row
+--------------------------------------------------------
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+### Will you be promoted?
+
+```{r}
+valueBox(paste("HR"), 
+          color = "red")
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+### Employees in the Company
+```{r}
+valueBox(length(traindata$Employee_ID),
+         icon = 'fa-user')
+```
+
+
+### Employees Promoted 
+
+```{r}
+valueBox(sum(traindata$Is_Promoted == "1"),
+         icon = 'fa-arrow-circle-up')
+```
+
+### **Promotion Rate**
+```{r}
+gauge(round(sum(traindata$Is_Promoted==1)/length(traindata$Employee_ID)*100, 
+            digits = 1),
+            min = 0, 
+            max = 100,
+            gaugeSectors(success = c(0, 5),
+                         warning = c(5, 10),
+                         danger = c(10, 20),
+                         colors = c("green", "red", "yellow")))
+```
+
+Row
+--------------------------------------------------------------
+
+### Employees by Department
+
+```{r}
+p1 <- traindata %>%
+  group_by(Department) %>%
+  summarise(count = n()) %>%
+  plot_ly(x = ~Department,
+          y = ~count, 
+          colors = rainbow(10),
+          type = 'bar') %>%
+  layout(xaxis = list(title = "Employees by Department"),
+         yaxis = list(title = "Count"))
+p1
+```
+
+### Employess by Education
+
+```{r}
+p2 <- traindata %>%
+  group_by(Education) %>%
+  summarise (count = n()) %>%
+  filter(count>1) %>%
+  plot_ly(labels = ~Education,
+          values = ~count,
+          marker = list(colors = mycolors)) %>%
+  add_pie(hole = 0.3) %>%
+  layout(xaxis = list(zeroline = FALSE,
+                      showline = FALSE,
+                      showticklabels = F, 
+                      showgrid = F),
+         yaxis = list(zeroline = FALSE,
+                      showline = FALSE,
+                      showticklabels = F, 
+                      showgrid = F))
+p2
+```
+
+DEPARTMENT
+========================================================
+
+### Employees by Department
+
+```{r}
+p3<- traindata %>%
+  group_by(Department) %>%
+  summarise(count = n()) %>%
+  plot_ly(x = ~Department,
+          y = ~count,
+          type = 'bar',
+          marker = list(color = rainbow(9))) %>%
+  layout(xaxis = list(title = "Employees by Department"),
+         yaxis = list(title = "Count"))
+p3
+```
+
+### Box plot
+
+```{r}
+traindata %>%
+  group_by(Department) %>%
+  ggvis(~Department, ~Age, fill = ~Department) %>%
+  layer_boxplots()
+```
+
+```{r, eval=FALSE, echo= F}
+p3 <- plot_ly(traindata, 
+              x = ~Region,
+              y = ~Department, 
+              text = paste("Channel:", traindata$Region,
+                           "Department:", traindata$Department),
+              type = "bar") %>%
+          layout(xaxis = list(title = "Region"), 
+                 yaxis = list(title = "Department"))
+p3
+```
+
+### Scatter plot
+
+```{r, eval=FALSE, echo=F}
+p4 <- plot_ly(traindata, x=~Age) %>%
+  add_markers(y=~Average_Training_Score,
+              text = ~paste("Score:", Average_Training_Score),
+              showlegend = F) %>%
+  add_lines(y = ~fitted(loess(Age ~Average_Training_Score)),
+            name = "Loess Smother",
+            color = I("#FFC125"),
+            showlegend = T, 
+            line = list(width=5)) %>%
+  layout(xaxis = list(Title = "Age"),
+         yaxis = list(Title = "Score"))
+  
+p4
+```
+
+
+EDUCATION
+========================================================
+  
+
+Row
+--------------------------------------------------------------
+
+### Gender
+
+```{r graphics}
+
+p1 <- ggplot(traindata, aes(Is_Promoted))+
+  geom_bar(aes(fill = Gender))
+
+ggplotly(p1)
+
+```
+
+### Department
+```{r}
+
+p2 <- ggplot(traindata, aes(Department))+
+  geom_bar()
+
+ggplotly(p2)
+
+```
+
+GENDER
+========================================================
+
+### Map
+
+```{r, eval=F}
+country <- traindata %>%
+  group_by(Gender) %>%
+  summarise(total = n())
+
+highchart() %>%
+  hctitle(text = "text1") %>%
+  hc_subtitle() 
+```
+
+DATA
+========================================================
+
+### Data Table (included only 20% of the original data).
+
+```{r}
+resumedata <- traindata[sample(1:nrow(traindata), 1000, replace=FALSE),] 
+
+datatable(resumedata, 
+          caption = "Test",
+          rownames = T,
+          filter = "top",
+          options = list(pageLength = 20))
+```
+
+PIVOT TABLE
+=====================================================
+
+### Pivot Table (included only 20% of the original data).
+
+```{r}
+rpivotTable(resumedata,
+            aggregatorName = "Count",
+            cols = "Department",
+            rows = "Age",
+            rendererName = "Heatmap")  
+```
+
+PREDICTION ANALYSES
+===================================================
+
+Column {data-width = 100}
+--------------------------------------------------
+
+### Title 1
+```{r}
+valueBox(max(traindata$Age),
+         icon = "fa-user")
+```
+
+### Title 2
+
+```{r}
+valueBox(round(mean(traindata$Age),
+               digits = 2),
+         icon = "fa-area-chart")
+```
+
+### Title 
+
+Column
+-------------------------------------------------------
+
+Report
+
+* This is a report on `r length(traindata$Employee_ID)`.
+
+* The average is  `r mean(traindata$Age)`.
+
+* This report was generated on 
